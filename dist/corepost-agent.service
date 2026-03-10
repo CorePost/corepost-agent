@@ -1,0 +1,21 @@
+[Unit]
+Description=CorePost Agent (stub)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/corepost-agent.env
+ExecStart=/usr/local/lib/corepost-agent/corepost-agent.sh
+Restart=always
+RestartSec=3
+
+# Hardening (keep minimal for the stub; real agent may tighten further).
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+
