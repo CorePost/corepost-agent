@@ -13,14 +13,11 @@ now_unix() { date +%s; }
 trim_trailing_slash() { printf '%s' "$1" | sed 's:/*$::'; }
 
 json_get_str() {
-  # Minimal JSON field extractor for flat response objects.
-  # Works for `"key":"value"` fields.
   key="$1"
   sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" | head -n 1
 }
 
 json_get_int() {
-  # Works for `"key":123` fields.
   key="$1"
   sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\\([0-9][0-9]*\\).*/\\1/p" | head -n 1
 }
@@ -31,7 +28,6 @@ compute_signature_hex() {
   path="$3"
   ts="$4"
   msg="$(printf '%s\n%s\n%s' "$method" "$path" "$ts")"
-  # openssl output format: "SHA2-256(stdin)= <hex>"
   printf '%s' "$msg" | openssl dgst -sha256 -hmac "$secret" | awk '{print $NF}'
 }
 
@@ -68,7 +64,6 @@ http_post_signed() {
 }
 
 http_post_signed_status() {
-  # Like http_post_signed, but returns the HTTP status code and never fails fast.
   base_url="$1"
   path="$2"
   device_id="$3"
@@ -136,7 +131,6 @@ apply_action() {
       ;;
     logout)
       if command -v loginctl >/dev/null 2>&1; then
-        # Terminate all non-empty sessions.
         loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' | while read -r sid; do
           [ -n "$sid" ] || continue
           loginctl terminate-session "$sid" >/dev/null 2>&1 || true
@@ -151,7 +145,6 @@ apply_action() {
         return 2
       fi
       delay="${COREPOST_AGENT_SHUTDOWN_DELAY_SECONDS:-10}"
-      # Give a small delay so we can ACK before poweroff.
       ( sleep "$delay" >/dev/null 2>&1 || true; systemctl poweroff >/dev/null 2>&1 || true ) &
       return 0
       ;;
@@ -184,7 +177,6 @@ poll_once() {
   secret="$3"
 
   resp="$(http_post_signed "$base_url" "/agent/poll" "$device_id" "$secret" "")"
-  # Normalize to single line for our trivial parsers.
   resp_one="$(printf '%s' "$resp" | tr -d '\n')"
 
   current_state="$(printf '%s' "$resp_one" | json_get_str currentState)"
@@ -268,7 +260,6 @@ main() {
 
   while true; do
     interval_override="${COREPOST_AGENT_POLL_INTERVAL_SECONDS:-}"
-    # Backwards-compatible alias (previous stub naming).
     if [ -z "$interval_override" ]; then
       interval_override="${COREPOST_AGENT_HEARTBEAT_SECONDS:-}"
     fi
@@ -281,7 +272,6 @@ main() {
       else
         sleep_for="${COREPOST_AGENT_DEFAULT_POLL_SECONDS:-10}"
       fi
-      # Clamp.
       if [ "$sleep_for" -lt "$min_poll" ]; then sleep_for="$min_poll"; fi
       if [ "$sleep_for" -gt "$max_poll" ]; then sleep_for="$max_poll"; fi
       sleep "$sleep_for"

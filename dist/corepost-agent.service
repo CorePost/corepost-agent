@@ -10,7 +10,6 @@ ExecStart=/usr/local/lib/corepost-agent/corepost-agent.sh
 Restart=always
 RestartSec=3
 
-# Hardening (keep minimal: agent may need system tools like loginctl/systemctl).
 NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=true
