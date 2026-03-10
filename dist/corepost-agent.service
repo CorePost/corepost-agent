@@ -1,5 +1,5 @@
 [Unit]
-Description=CorePost Agent (stub)
+Description=CorePost Agent
 Wants=network-online.target
 After=network-online.target
 
@@ -10,7 +10,7 @@ ExecStart=/usr/local/lib/corepost-agent/corepost-agent.sh
 Restart=always
 RestartSec=3
 
-# Hardening (keep minimal for the stub; real agent may tighten further).
+# Hardening (keep minimal: agent may need system tools like loginctl/systemctl).
 NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=true
@@ -18,4 +18,3 @@ PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
-
