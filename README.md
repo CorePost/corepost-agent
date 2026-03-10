@@ -1,62 +1,72 @@
 # corepost-agent
 
-`corepost-agent` is a Linux post-boot component that periodically polls the CorePost server and applies the returned policy.
+`corepost-agent` is a Linux post-boot component that runs under `systemd`, periodically polls the server, and applies the returned policy.
 
-The agent is intentionally implemented on a minimal stack:
-- `systemd` to run as a service;
-- `curl` to call the server;
-- `openssl` to compute HMAC signatures.
+The implementation intentionally keeps the stack minimal:
+- `systemd` (service manager)
+- `curl` (HTTP client)
+- `openssl` (HMAC)
 
-## Server Contract
+## Contract
 
-The agent uses:
-- `POST /agent/poll` to fetch `currentState` and `action`;
-- `POST /agent/ack` to record an acknowledgement event after applying (or skipping) an action.
+Endpoints:
+- `POST /agent/poll` returns `currentState`, `action`, and `heartbeatIntervalSecond`
+- `POST /agent/ack` records an acknowledgement after an action is applied/skipped/failed
 
-Both endpoints require HMAC headers:
-- `X-DeviceId`
-- `X-Timestamp` (unix seconds)
-- `X-Signature` (hex HMAC-SHA256 of `METHOD\nPATH\nTIMESTAMP`, keyed by `COREPOST_DEVICE_SECRET`)
+Auth:
+- Headers: `X-DeviceId`, `X-Timestamp` (unix seconds), `X-Signature` (hex)
+- Signature: `HMAC-SHA256(deviceSecret, "METHOD\\nPATH\\nTIMESTAMP")`
 
-## Configuration
+## Config
 
-The systemd unit reads an optional environment file:
-- `/etc/corepost-agent.env`
+Systemd reads an optional environment file:
+- `/etc/corepost-agent.env` (0600)
 
-Minimal required keys:
+Required keys:
 - `COREPOST_SERVER_URL`
 - `COREPOST_DEVICE_ID`
 - `COREPOST_DEVICE_SECRET`
 
+Tuning:
+- `COREPOST_AGENT_POLL_INTERVAL_SECONDS` forces a fixed polling interval (preferred)
+- `COREPOST_AGENT_HEARTBEAT_SECONDS` is a deprecated alias for `COREPOST_AGENT_POLL_INTERVAL_SECONDS`
+- `COREPOST_AGENT_ACK_OBSERVE_EVERY_SECONDS` limits ACK spam for `observe` (default: 60)
+- `COREPOST_AGENT_BACKOFF_MAX_SECONDS` caps exponential backoff on failures (default: 60)
+
 See `dist/corepost-agent.env.example`.
 
-## Installation Layout
+## Install Layout
 
-The installer expects these files to be available in `dist/`:
+The installer downloads these artifacts from `dist/`:
 - `dist/corepost-agent.service`
 - `dist/corepost-agent.sh`
 - `dist/corepost-agent.env.example`
 
-A typical target layout:
+Typical target paths:
 - `/etc/systemd/system/corepost-agent.service`
 - `/usr/local/lib/corepost-agent/corepost-agent.sh`
 - `/etc/corepost-agent.env` (0600)
 
-## Actions
+## Demo / QA
 
-The server returns one of: `observe`, `logout`, `lock_session`, `shutdown`.
-
-Notes:
-- `shutdown` is gated by `COREPOST_AGENT_ENABLE_SHUTDOWN=1` to avoid accidental VM shutdown during demos.
-- `lock_session` and `logout` use `loginctl` when available.
-
-## Local Smoke (Once)
-
-You can run a single poll cycle and exit:
+1. Install and start the service:
 
 ```sh
-sudo COREPOST_SERVER_URL="..." \
-  COREPOST_DEVICE_ID="..." \
-  COREPOST_DEVICE_SECRET="..." \
-  /usr/local/lib/corepost-agent/corepost-agent.sh --once
+sudo systemctl daemon-reload
+sudo systemctl enable --now corepost-agent.service
+sudo systemctl status corepost-agent.service --no-pager
 ```
+
+2. Observe behavior:
+
+```sh
+sudo journalctl -u corepost-agent.service -f
+```
+
+3. Validate that the server receives polls and ACKs (via admin event log on the server side).
+
+## Limits
+
+- JSON parsing is intentionally lightweight (no `jq`). It assumes the server response is a flat JSON object with stable field names.
+- The server may request `shutdown` when the device is locked. This is gated by `COREPOST_AGENT_ENABLE_SHUTDOWN=1` to avoid accidental poweroff during demos.
+

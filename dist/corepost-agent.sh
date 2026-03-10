@@ -268,6 +268,10 @@ main() {
 
   while true; do
     interval_override="${COREPOST_AGENT_POLL_INTERVAL_SECONDS:-}"
+    # Backwards-compatible alias (previous stub naming).
+    if [ -z "$interval_override" ]; then
+      interval_override="${COREPOST_AGENT_HEARTBEAT_SECONDS:-}"
+    fi
     if interval="$(poll_once "$base_url" "$device_id" "$secret")"; then
       backoff=1
       if [ -n "$interval_override" ]; then
